@@ -24,15 +24,11 @@ package io.crate.expression.tablefunctions;
 
 import io.crate.data.Input;
 import io.crate.data.Row;
-import io.crate.metadata.BaseFunctionResolver;
 import io.crate.metadata.FunctionIdent;
-import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.TransactionContext;
-import io.crate.metadata.functions.params.FuncParams;
+import io.crate.metadata.functions.Signature;
 import io.crate.metadata.tablefunctions.TableFunctionImplementation;
-import io.crate.types.DataType;
-import io.crate.types.ObjectType;
 import io.crate.types.RowType;
 
 import java.util.List;
@@ -47,7 +43,6 @@ public class EmptyRowTableFunction {
     static class EmptyRowTableFunctionImplementation extends TableFunctionImplementation<Object> {
 
         private final FunctionInfo info;
-        private final RowType emptyRow = new RowType(List.of());
 
         private EmptyRowTableFunctionImplementation(FunctionInfo info) {
             this.info = info;
@@ -66,7 +61,7 @@ public class EmptyRowTableFunction {
 
         @Override
         public RowType returnType() {
-            return emptyRow;
+            return (RowType) info.returnType();
         }
 
         @Override
@@ -76,13 +71,16 @@ public class EmptyRowTableFunction {
     }
 
     public static void register(TableFunctionModule module) {
-        module.register(NAME, new BaseFunctionResolver(FuncParams.NONE) {
-
-            @Override
-            public FunctionImplementation getForTypes(List<DataType> dataTypes) throws IllegalArgumentException {
-                return new EmptyRowTableFunctionImplementation(
-                    new FunctionInfo(new FunctionIdent(NAME, dataTypes), ObjectType.untyped(), FunctionInfo.Type.TABLE));
-            }
-        });
+        RowType returnType = new RowType(List.of());
+        module.register(
+            Signature.table(NAME, returnType.getTypeSignature()),
+            args -> new EmptyRowTableFunctionImplementation(
+                new FunctionInfo(
+                    new FunctionIdent(NAME, args),
+                    returnType,
+                    FunctionInfo.Type.TABLE
+                )
+            )
+        );
     }
 }
