@@ -25,17 +25,14 @@ package io.crate.expression.tablefunctions;
 import io.crate.data.Input;
 import io.crate.data.Row;
 import io.crate.data.RowN;
-import io.crate.metadata.BaseFunctionResolver;
 import io.crate.metadata.FunctionIdent;
-import io.crate.metadata.FunctionImplementation;
 import io.crate.metadata.FunctionInfo;
 import io.crate.metadata.FunctionName;
 import io.crate.metadata.TransactionContext;
-import io.crate.metadata.functions.params.FuncParams;
+import io.crate.metadata.functions.Signature;
 import io.crate.metadata.pgcatalog.PgCatalogSchemaInfo;
 import io.crate.metadata.tablefunctions.TableFunctionImplementation;
 import io.crate.sql.Identifiers;
-import io.crate.types.DataType;
 import io.crate.types.RowType;
 
 import java.util.List;
@@ -46,40 +43,34 @@ import static io.crate.types.DataTypes.STRING;
 
 public final class PgGetKeywordsFunction extends TableFunctionImplementation<List<Object>> {
 
-    public static final String NAME = "pg_get_keywords";
+    private static final String NAME = "pg_get_keywords";
     private static final FunctionName FUNCTION_NAME = new FunctionName(PgCatalogSchemaInfo.NAME, NAME);
-    private static final PgGetKeywordsFunction INSTANCE = new PgGetKeywordsFunction();
-    private final FunctionInfo info;
-    private final RowType returnType;
 
     public static void register(TableFunctionModule module) {
-        module.register(
-            FUNCTION_NAME,
-            new BaseFunctionResolver(FuncParams.NONE) {
-
-                @Override
-                public FunctionImplementation getForTypes(List<DataType> argTypes) throws IllegalArgumentException {
-                    assert argTypes.isEmpty() : "argument types for pg_get_keywords must be empty due to FuncParams definition";
-                    return PgGetKeywordsFunction.INSTANCE;
-                }
-            }
-        );
-    }
-
-    public PgGetKeywordsFunction() {
-        returnType = new RowType(
+        var returnType = new RowType(
             List.of(STRING, STRING, STRING),
             List.of("word", "catcode", "catdesc")
         );
-        info = new FunctionInfo(
-            new FunctionIdent(FUNCTION_NAME, List.of()),
-            returnType,
-            FunctionInfo.Type.TABLE
+        module.register(
+            Signature.table(FUNCTION_NAME, returnType.getTypeSignature()),
+            args -> new PgGetKeywordsFunction(
+                new FunctionInfo(
+                    new FunctionIdent(FUNCTION_NAME, args),
+                    returnType,
+                    FunctionInfo.Type.TABLE
+                )
+            )
         );
     }
 
+    private final FunctionInfo info;
+
+    public PgGetKeywordsFunction(FunctionInfo info) {
+        this.info = info;
+    }
+
     @Override
-    public Iterable<Row> evaluate(TransactionContext txnCtx, Input<List<Object>>... args) {
+    public Iterable<Row> evaluate(TransactionContext txnCtx, Input<List<Object>>[] args) {
         return () -> Identifiers.KEYWORDS.stream()
             .map(new Function<Identifiers.Keyword, Row>() {
 
@@ -108,7 +99,8 @@ public final class PgGetKeywordsFunction extends TableFunctionImplementation<Lis
 
     @Override
     public RowType returnType() {
-        return returnType;
+        assert info.returnType() instanceof RowType : "must have the row return type";
+        return (RowType) info.returnType();
     }
 
     @Override
